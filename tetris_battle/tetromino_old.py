@@ -2,7 +2,7 @@ import random
 from config import COLORS
 
 class Tetromino:
-    # Game Boy Tetris rotation system - left-handed Nintendo rotation (no wall kicks)
+    # Tetromino shapes defined as rotation states
     SHAPES = {
         'I': [
             [[0, 0, 0, 0],
@@ -132,34 +132,36 @@ class Tetromino:
         self.color = COLORS[self.shape_type]
         
     def get_shape(self):
+        """Get current shape matrix based on rotation"""
         return self.SHAPES[self.shape_type][self.rotation]
     
     def get_rotated_shape(self, rotation_offset=1):
+        """Get shape matrix for a different rotation"""
         rotations = len(self.SHAPES[self.shape_type])
         new_rotation = (self.rotation + rotation_offset) % rotations
         return self.SHAPES[self.shape_type][new_rotation]
     
     def rotate(self):
-        """Rotate piece - Game Boy style, no wall kicks"""
+        """Rotate the tetromino clockwise"""
         rotations = len(self.SHAPES[self.shape_type])
         self.rotation = (self.rotation + 1) % rotations
     
     def get_blocks(self):
-        """Get list of block positions for current piece"""
+        """Get list of absolute block positions"""
         blocks = []
         shape = self.get_shape()
-        for row in range(4):
-            for col in range(4):
+        for row in range(len(shape)):
+            for col in range(len(shape[row])):
                 if shape[row][col]:
                     blocks.append((self.x + col, self.y + row))
         return blocks
     
     def get_rotated_blocks(self, rotation_offset=1):
-        """Get blocks for rotated piece without actually rotating"""
+        """Get blocks for a rotated version without actually rotating"""
         blocks = []
         shape = self.get_rotated_shape(rotation_offset)
-        for row in range(4):
-            for col in range(4):
+        for row in range(len(shape)):
+            for col in range(len(shape[row])):
                 if shape[row][col]:
                     blocks.append((self.x + col, self.y + row))
         return blocks
@@ -170,77 +172,31 @@ class Tetromino:
         new_piece.rotation = self.rotation
         return new_piece
 
-
-class GameBoyRandomizer:
-    """Game Boy Tetris pseudo-random piece generator
-    
-    Implements the authentic Game Boy algorithm that prevents the same piece 
-    from appearing 3 times in a row using a history-based approach.
-    """
+class TetrominoGenerator:
+    """Generates tetrominoes using the 7-bag system"""
     
     def __init__(self):
-        self.pieces = ['I', 'O', 'T', 'S', 'Z', 'J', 'L']
-        self.history = []
-        self.current_piece = None
-        self.next_piece = None
-        # Initialize with authentic Game Boy-style seeding
-        self.rng_state = random.randint(0, 65535)
-        self._generate_initial_pieces()
+        self.bag = []
+        self.refill_bag()
     
-    def _generate_initial_pieces(self):
-        """Generate first two pieces"""
-        self.current_piece = random.choice(self.pieces)
-        self.next_piece = self._generate_next_piece()
-    
-    def _generate_next_piece(self):
-        """Generate next piece using authentic Game Boy algorithm
-        
-        The Game Boy algorithm uses a history-based approach with bitwise operations
-        to prevent the same piece from appearing 3 times consecutively.
-        """
-        # Update RNG state (simplified version of Game Boy's PRNG)
-        self.rng_state = (self.rng_state * 1103515245 + 12345) & 0xFFFFFFFF
-        
-        # Get piece index from RNG
-        piece_index = (self.rng_state >> 16) % len(self.pieces)
-        candidate = self.pieces[piece_index]
-        
-        # Check if this would make 3 in a row
-        if len(self.history) >= 2:
-            if (self.history[-1] == self.history[-2] == candidate and 
-                self.history[-1] == self.current_piece):
-                # Prevent 3 in a row by trying next piece
-                piece_index = (piece_index + 1) % len(self.pieces)
-                candidate = self.pieces[piece_index]
-        
-        return candidate
+    def refill_bag(self):
+        """Refill the bag with one of each tetromino type"""
+        shapes = list(Tetromino.SHAPES.keys())
+        random.shuffle(shapes)
+        self.bag.extend(shapes)
     
     def get_next(self):
-        """Get the next piece"""
-        # Create piece from current
-        piece = Tetromino(self.current_piece)
+        """Get the next tetromino from the bag"""
+        if not self.bag:
+            self.refill_bag()
         
-        # Update history with current piece
-        self.history.append(self.current_piece)
-        
-        # Advance: next becomes current, generate new next
-        self.current_piece = self.next_piece
-        self.next_piece = self._generate_next_piece()
-        
-        # Keep history manageable (Game Boy only needs short history)
-        if len(self.history) > 4:
-            self.history.pop(0)
-        
-        return piece
+        shape_type = self.bag.pop(0)
+        return Tetromino(shape_type)
     
     def peek(self, count=1):
-        """Peek at upcoming pieces (Game Boy only shows 1 next piece)"""
-        if count == 1:
-            return [Tetromino(self.current_piece)]
-        else:
-            # Game Boy only shows 1 next piece
-            return [Tetromino(self.current_piece)]
-
-
-# Alias for backwards compatibility
-TetrominoGenerator = GameBoyRandomizer
+        """Peek at the next few pieces without removing them"""
+        # Make sure we have enough pieces
+        while len(self.bag) < count:
+            self.refill_bag()
+        
+        return [Tetromino(shape_type) for shape_type in self.bag[:count]]

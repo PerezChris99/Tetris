@@ -1,32 +1,39 @@
 import pygame
-import time
 from game import TetrisGame
 from sounds import SoundManager
-from config import *
 
 class Player:
-    def __init__(self, sound_manager, start_level=0):
-        self.game = TetrisGame(start_level)
+    def __init__(self, sound_manager):
+        self.game = TetrisGame()
         self.sound_manager = sound_manager
         self.keys_pressed = set()
         self.last_move_time = 0
         self.last_soft_drop_time = 0
+        self.move_repeat_delay = 150  # ms
+        self.soft_drop_repeat_delay = 50  # ms
+        self.das_delay = 250  # Delayed Auto Shift initial delay
+        self.das_speed = 50   # Delayed Auto Shift repeat speed
         self.das_timer = 0
         self.das_active = False
         self.das_direction = 0
-        self.soft_drop_active = False
     
     def handle_input(self, keys):
-        """Handle player input - Game Boy style"""
-        if self.game.game_over or self.game.clear_animation_active:
+        """Handle player input"""
+        if self.game.game_over:
             return
         
         current_time = pygame.time.get_ticks()
         
-        # Handle rotation (A button) - Game Boy Tetris only rotates counter-clockwise
+        # Handle rotation
         if keys[pygame.K_UP] and pygame.K_UP not in self.keys_pressed:
             if self.game.rotate_piece():
                 self.sound_manager.play_sound('rotate')
+        
+        # Handle hard drop
+        if keys[pygame.K_SPACE] and pygame.K_SPACE not in self.keys_pressed:
+            drop_distance = self.game.hard_drop()
+            if drop_distance > 0:
+                self.sound_manager.play_sound('drop')
         
         # Handle horizontal movement with DAS (Delayed Auto Shift)
         left_pressed = keys[pygame.K_LEFT]
@@ -41,32 +48,24 @@ class Player:
             self.das_timer = 0
             self.das_direction = 0
         
-        # Handle soft drop (down button) - Game Boy style
+        # Handle soft drop
         if keys[pygame.K_DOWN]:
-            if not self.soft_drop_active:
-                # Start soft drop
-                self.soft_drop_active = True
-                self.last_soft_drop_time = current_time
-                # Immediate first drop
-                if self.game.soft_drop() > 0:
+            if pygame.K_DOWN not in self.keys_pressed:
+                # First press
+                if self.game.move_piece(0, 1):
                     self.sound_manager.play_sound('move')
-            else:
-                # Game Boy soft drop is 1/3 of normal gravity (3x faster)
-                current_gravity = frames_to_ms(GRAVITY_TABLE[min(self.game.level, MAX_LEVEL)])
-                soft_drop_speed = current_gravity / SOFT_DROP_MULTIPLIER
-                
-                if current_time - self.last_soft_drop_time >= soft_drop_speed:
-                    if self.game.soft_drop() > 0:
-                        self.sound_manager.play_sound('move')
-                    self.last_soft_drop_time = current_time
-        else:
-            self.soft_drop_active = False
+                self.last_soft_drop_time = current_time
+            elif current_time - self.last_soft_drop_time >= self.soft_drop_repeat_delay:
+                # Repeat soft drop
+                if self.game.move_piece(0, 1):
+                    self.sound_manager.play_sound('move')
+                self.last_soft_drop_time = current_time
         
         # Update pressed keys
-        self.keys_pressed = {key for key in [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_DOWN, pygame.K_UP] if keys[key]}
+        self.keys_pressed = {key for key in [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_DOWN, pygame.K_UP, pygame.K_SPACE] if keys[key]}
     
     def _handle_horizontal_movement(self, direction, current_time):
-        """Handle horizontal movement with DAS (Game Boy style)"""
+        """Handle horizontal movement with DAS"""
         if self.das_direction != direction:
             # Direction changed or first press
             self.das_direction = direction
@@ -80,12 +79,12 @@ class Player:
             # Same direction held
             if not self.das_active:
                 # Check if DAS delay has passed
-                if current_time - self.das_timer >= DAS_DELAY:
+                if current_time - self.das_timer >= self.das_delay:
                     self.das_active = True
                     self.das_timer = current_time
             else:
                 # DAS is active, check for repeat
-                if current_time - self.das_timer >= DAS_SPEED:
+                if current_time - self.das_timer >= self.das_speed:
                     if self.game.move_piece(direction, 0):
                         self.sound_manager.play_sound('move')
                     self.das_timer = current_time
@@ -101,4 +100,3 @@ class Player:
         self.das_active = False
         self.das_direction = 0
         self.das_timer = 0
-        self.soft_drop_active = False

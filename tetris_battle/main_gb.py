@@ -43,38 +43,17 @@ class TetrisBattle:
     def update(self, dt):
         """Update game state"""
         if self.game_state == "playing":
-            # Store previous line counts for garbage calculation
-            prev_player_lines = self.player.game.lines_cleared
-            prev_ai_lines = self.ai_player.game.lines_cleared
-            
             self.player.update(dt)
             self.ai_player.update(dt)
             
-            # Check for line clears and send garbage (Game Boy style)
-            player_lines_cleared = self.player.game.lines_cleared - prev_player_lines
-            ai_lines_cleared = self.ai_player.game.lines_cleared - prev_ai_lines
-            
-            # Send garbage lines based on Game Boy rules
-            if player_lines_cleared > 0:
-                garbage_to_send = self.player.game.send_garbage_lines(player_lines_cleared)
-                if garbage_to_send > 0:
-                    self.ai_player.game.receive_garbage_lines(garbage_to_send)
-                    print(f"Player cleared {player_lines_cleared} lines, sending {garbage_to_send} garbage to AI")
-            
-            if ai_lines_cleared > 0:
-                garbage_to_send = self.ai_player.game.send_garbage_lines(ai_lines_cleared)
-                if garbage_to_send > 0:
-                    self.player.game.receive_garbage_lines(garbage_to_send)
-                    print(f"AI cleared {ai_lines_cleared} lines, sending {garbage_to_send} garbage to Player")
-            
-            # Check for round end conditions (Game Boy style)
+            # Check for round end conditions
             if self.player.game.game_over:
                 self.end_round("AI")
             elif self.ai_player.game.game_over:
                 self.end_round("Player")
-            elif self.player.game.check_lines_win_condition():
+            elif self.player.game.lines_cleared >= LINES_TO_WIN:
                 self.end_round("Player")
-            elif self.ai_player.game.check_lines_win_condition():
+            elif self.ai_player.game.lines_cleared >= LINES_TO_WIN:
                 self.end_round("AI")
         
         elif self.game_state == "round_end":
@@ -199,19 +178,8 @@ class TetrisBattle:
                 y = grid_y + row * CELL_SIZE
                 
                 if game.grid[actual_row][col] != 0:
-                    # Check if this line is being cleared
-                    if actual_row in game.clearing_lines and game.clear_animation_active:
-                        # Game Boy authentic flash animation - entire line flashes white
-                        flash_phase = int(game.clear_animation_timer / (game.clear_animation_duration / 4))
-                        if flash_phase % 2 == 0:
-                            color = GB_WHITE  # Flash to white (Game Boy style)
-                        else:
-                            color = TETROMINO_COLOR
-                    else:
-                        color = TETROMINO_COLOR
-                    
                     # Draw filled cell
-                    pygame.draw.rect(self.screen, color, 
+                    pygame.draw.rect(self.screen, TETROMINO_COLOR, 
                                    (x, y, CELL_SIZE, CELL_SIZE))
                     pygame.draw.rect(self.screen, UI_BORDER, 
                                    (x, y, CELL_SIZE, CELL_SIZE), 1)

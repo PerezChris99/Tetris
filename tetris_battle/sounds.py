@@ -39,54 +39,75 @@ class SoundManager:
                 self.sounds[sound_name] = self.create_placeholder_sound(sound_name)
     
     def create_placeholder_sound(self, sound_name):
-        """Create a placeholder sound for missing audio files"""
-        # Create a simple beep sound
+        """Create Game Boy-style placeholder sounds for missing audio files"""
         try:
-            # Generate a simple sine wave
             import numpy as np
             
-            duration = 0.1  # seconds
             sample_rate = 22050
-            frequency = 440  # Hz
             
+            # Game Boy-style sound frequencies and patterns
             if sound_name == 'move':
-                frequency = 300
-                duration = 0.05
-            elif sound_name == 'rotate':
-                frequency = 500
-                duration = 0.1
-            elif sound_name == 'drop':
-                frequency = 200
-                duration = 0.2
-            elif sound_name == 'clear':
-                frequency = 600
-                duration = 0.3
-            elif sound_name == 'gameover':
-                frequency = 150
-                duration = 0.5
-            elif sound_name == 'win':
+                # Short high beep
+                duration = 0.08
                 frequency = 800
-                duration = 0.4
-            elif sound_name == 'lose':
-                frequency = 100
+            elif sound_name == 'rotate':
+                # Medium beep
+                duration = 0.1
+                frequency = 600
+            elif sound_name == 'drop':
+                # Low thud
+                duration = 0.15
+                frequency = 200
+            elif sound_name == 'clear':
+                # Multi-tone clear sound
+                duration = 0.3
+                frequency = 1000
+            elif sound_name == 'gameover':
+                # Descending tone
+                duration = 0.8
+                frequency = 400
+            elif sound_name == 'win':
+                # Ascending victory fanfare
                 duration = 0.6
+                frequency = 800
+            elif sound_name == 'lose':
+                # Descending loss tone
+                duration = 0.5
+                frequency = 300
+            else:
+                duration = 0.1
+                frequency = 440
             
-            frames = int(duration * sample_rate)
-            arr = np.zeros(frames)
+            # Generate the waveform
+            t = np.linspace(0, duration, int(sample_rate * duration), False)
             
-            for i in range(frames):
-                arr[i] = np.sin(2 * np.pi * frequency * i / sample_rate)
+            if sound_name == 'clear':
+                # Multi-tone line clear sound
+                wave = (np.sin(frequency * 2 * np.pi * t) + 
+                       np.sin(frequency * 1.5 * 2 * np.pi * t)) * 0.3
+            elif sound_name == 'gameover':
+                # Descending game over sound
+                freq_sweep = frequency * (1 - t / duration)
+                wave = np.sin(freq_sweep * 2 * np.pi * t) * 0.5
+            elif sound_name == 'win':
+                # Ascending victory sound
+                freq_sweep = frequency * (1 + t / duration)
+                wave = np.sin(freq_sweep * 2 * np.pi * t) * 0.4
+            else:
+                # Simple sine wave
+                wave = np.sin(frequency * 2 * np.pi * t) * 0.3
+            
+            # Apply fade out to prevent clicks
+            fade_samples = int(sample_rate * 0.01)  # 10ms fade
+            if len(wave) > fade_samples:
+                wave[-fade_samples:] *= np.linspace(1, 0, fade_samples)
             
             # Convert to 16-bit integers
-            arr = (arr * 32767).astype(np.int16)
+            wave = (wave * 32767).astype(np.int16)
             
-            # Create stereo sound
-            stereo_arr = np.zeros((frames, 2), dtype=np.int16)
-            stereo_arr[:, 0] = arr
-            stereo_arr[:, 1] = arr
-            
-            sound = pygame.sndarray.make_sound(stereo_arr)
-            sound.set_volume(self.volume * 0.3)  # Make placeholder sounds quieter
+            # Create pygame sound
+            sound = pygame.sndarray.make_sound(wave)
+            sound.set_volume(self.volume)
             return sound
         except:
             # If numpy is not available, return None

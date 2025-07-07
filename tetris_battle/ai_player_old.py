@@ -1,31 +1,32 @@
 import time
+import random
 from game import TetrisGame
 from sounds import SoundManager
-from config import *
+from config import AI_THINK_TIME, GRID_WIDTH, GRID_HEIGHT
 
 class AIPlayer:
-    def __init__(self, sound_manager, start_level=0):
-        self.game = TetrisGame(start_level)
+    def __init__(self, sound_manager):
+        self.game = TetrisGame()
         self.sound_manager = sound_manager
         self.last_move_time = 0
-        self.move_delay = 100  # ms between moves (faster for Game Boy feel)
+        self.move_delay = 500  # ms between moves
         self.thinking = False
         self.think_start_time = 0
         self.planned_move = None
         
-        # AI heuristic weights (tuned for Game Boy Tetris)
+        # AI heuristic weights (tuned for good performance)
         self.weights = {
             'aggregate_height': -0.510066,
             'lines_cleared': 0.760666,
             'holes': -0.35663,
             'bumpiness': -0.184483,
-            'height_penalty': -0.2,
-            'well_depth': -0.1
+            'height_penalty': -0.1,
+            'well_depth': -0.05
         }
     
     def update(self, dt):
         """Update AI state"""
-        if self.game.game_over or self.game.clear_animation_active:
+        if self.game.game_over:
             return
         
         current_time = time.time() * 1000  # Convert to ms
@@ -35,9 +36,9 @@ class AIPlayer:
         
         # Check if it's time to make a move
         if current_time - self.last_move_time >= self.move_delay:
-            if not self.thinking:
+            if not self.thinking and self.game.current_piece:
                 self.start_thinking()
-            elif current_time - self.think_start_time >= AI_THINK_TIME * 1000:
+            elif self.thinking and current_time - self.think_start_time >= AI_THINK_TIME * 1000:
                 self.execute_planned_move()
     
     def start_thinking(self):
@@ -50,32 +51,32 @@ class AIPlayer:
         """Execute the planned move"""
         if self.planned_move:
             target_x, target_rotation = self.planned_move
-            current_piece = self.game.current_piece
             
-            if current_piece:
-                # Rotate to target rotation
-                while current_piece.rotation != target_rotation:
-                    if self.game.rotate_piece():
-                        self.sound_manager.play_sound('rotate')
-                
-                # Move to target position
-                if target_x < current_piece.x:
-                    while current_piece.x > target_x:
-                        if not self.game.move_piece(-1, 0):
-                            break
-                        self.sound_manager.play_sound('move')
-                elif target_x > current_piece.x:
-                    while current_piece.x < target_x:
-                        if not self.game.move_piece(1, 0):
-                            break
-                        self.sound_manager.play_sound('move')
-                
-                # Drop the piece
-                while not self.game.check_collision(current_piece, 0, 1):
-                    self.game.move_piece(0, 1)
-                
-                # Lock the piece
-                self.game.lock_piece()
+            # Rotate to target rotation
+            current_rotation = self.game.current_piece.rotation
+            rotations_needed = (target_rotation - current_rotation) % len(self.game.current_piece.SHAPES[self.game.current_piece.shape_type])
+            
+            for _ in range(rotations_needed):
+                if self.game.rotate_piece():
+                    self.sound_manager.play_sound('rotate')
+            
+            # Move to target x position
+            current_x = self.game.current_piece.x
+            if target_x < current_x:
+                for _ in range(current_x - target_x):
+                    if not self.game.move_piece(-1, 0):
+                        break
+                    self.sound_manager.play_sound('move')
+            elif target_x > current_x:
+                for _ in range(target_x - current_x):
+                    if not self.game.move_piece(1, 0):
+                        break
+                    self.sound_manager.play_sound('move')
+            
+            # Hard drop
+            drop_distance = self.game.hard_drop()
+            if drop_distance > 0:
+                self.sound_manager.play_sound('drop')
         
         self.thinking = False
         self.planned_move = None
@@ -95,23 +96,26 @@ class AIPlayer:
         # Try all possible rotations and positions
         for rotation in range(shape_rotations):
             for x in range(GRID_WIDTH):
-                # Create test piece
+                # Create a test piece at this position and rotation
                 test_piece = piece.copy()
-                test_piece.rotation = rotation
                 test_piece.x = x
-                test_piece.y = 0
+                test_piece.rotation = rotation
                 
                 # Check if this position is valid
-                if not self.game.check_collision(test_piece):
-                    # Simulate placement
-                    test_grid, lines_cleared = self.game.simulate_placement(test_piece, x, 0, rotation)
-                    
-                    # Evaluate the resulting grid
-                    score = self.evaluate_grid(test_grid, lines_cleared)
+                if self.game.check_collision(test_piece):
+                    continue
+                
+                # Simulate the placement
+                try:
+                    grid_result, lines_cleared = self.game.simulate_placement(piece, x, 0, rotation)
+                    score = self.evaluate_grid(grid_result, lines_cleared)
                     
                     if score > best_score:
                         best_score = score
                         best_move = (x, rotation)
+                except:
+                    # Skip invalid moves
+                    continue
         
         return best_move
     
@@ -140,7 +144,7 @@ class AIPlayer:
         # Height penalty for very tall stacks
         max_height = max(heights) if heights else 0
         if max_height > 15:
-            score += self.weights['height_penalty'] * (max_height - 15)
+            score += self.weights['height_penalty'] * (max_height - 15) ** 2
         
         # Well depth penalty
         well_depth = self.calculate_well_depth(grid, heights)
@@ -164,11 +168,11 @@ class AIPlayer:
         """Count holes in the grid (empty cells with filled cells above)"""
         holes = 0
         for col in range(GRID_WIDTH):
-            found_block = False
+            block_found = False
             for row in range(GRID_HEIGHT):
                 if grid[row][col] != 0:
-                    found_block = True
-                elif found_block and grid[row][col] == 0:
+                    block_found = True
+                elif block_found and grid[row][col] == 0:
                     holes += 1
         return holes
     
@@ -178,9 +182,11 @@ class AIPlayer:
         for i in range(len(heights)):
             left_height = heights[i - 1] if i > 0 else 0
             right_height = heights[i + 1] if i < len(heights) - 1 else 0
+            current_height = heights[i]
             
-            if heights[i] < left_height and heights[i] < right_height:
-                well_depth += min(left_height, right_height) - heights[i]
+            # Check if this is a well (both neighbors are taller)
+            if left_height > current_height and right_height > current_height:
+                well_depth += min(left_height, right_height) - current_height
         
         return well_depth
     

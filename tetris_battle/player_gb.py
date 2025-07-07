@@ -18,12 +18,12 @@ class Player:
     
     def handle_input(self, keys):
         """Handle player input - Game Boy style"""
-        if self.game.game_over or self.game.clear_animation_active:
+        if self.game.game_over:
             return
         
         current_time = pygame.time.get_ticks()
         
-        # Handle rotation (A button) - Game Boy Tetris only rotates counter-clockwise
+        # Handle rotation (A button)
         if keys[pygame.K_UP] and pygame.K_UP not in self.keys_pressed:
             if self.game.rotate_piece():
                 self.sound_manager.play_sound('rotate')
@@ -41,7 +41,7 @@ class Player:
             self.das_timer = 0
             self.das_direction = 0
         
-        # Handle soft drop (down button) - Game Boy style
+        # Handle soft drop (down button)
         if keys[pygame.K_DOWN]:
             if not self.soft_drop_active:
                 # Start soft drop
@@ -50,15 +50,11 @@ class Player:
                 # Immediate first drop
                 if self.game.soft_drop() > 0:
                     self.sound_manager.play_sound('move')
-            else:
-                # Game Boy soft drop is 1/3 of normal gravity (3x faster)
-                current_gravity = frames_to_ms(GRAVITY_TABLE[min(self.game.level, MAX_LEVEL)])
-                soft_drop_speed = current_gravity / SOFT_DROP_MULTIPLIER
-                
-                if current_time - self.last_soft_drop_time >= soft_drop_speed:
-                    if self.game.soft_drop() > 0:
-                        self.sound_manager.play_sound('move')
-                    self.last_soft_drop_time = current_time
+            elif current_time - self.last_soft_drop_time >= SOFT_DROP_SPEED:
+                # Continue soft drop
+                if self.game.soft_drop() > 0:
+                    self.sound_manager.play_sound('move')
+                self.last_soft_drop_time = current_time
         else:
             self.soft_drop_active = False
         

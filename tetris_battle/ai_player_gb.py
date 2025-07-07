@@ -25,7 +25,7 @@ class AIPlayer:
     
     def update(self, dt):
         """Update AI state"""
-        if self.game.game_over or self.game.clear_animation_active:
+        if self.game.game_over:
             return
         
         current_time = time.time() * 1000  # Convert to ms
