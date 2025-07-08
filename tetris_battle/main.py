@@ -1,11 +1,18 @@
 import pygame
 import time
-import matplotlib.pyplot as plt
 import numpy as np
 from config import *
 from player import Player
 from ai_player import AIPlayer
 from sounds import SoundManager
+
+# Optional matplotlib import for statistics graphs
+try:
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
+    print("Note: matplotlib not installed. Statistics graphs will be disabled.")
 
 class TetrisBattle:
     def __init__(self):
@@ -28,9 +35,12 @@ class TetrisBattle:
         self.current_round = 1
         self.player_wins = 0
         self.ai_wins = 0
-        self.game_state = "playing"  # playing, round_end, game_end, stats
+        self.game_state = "playing"  # playing, paused, round_end, game_end, stats
+        self.paused = False
+        self.pause_time = 0
         self.round_end_time = 0
         self.round_winner = None
+        self.return_to_menu = False  # Flag to return to main menu
         
         # Statistics tracking for post-round graphs
         self.round_stats = []
@@ -60,6 +70,9 @@ class TetrisBattle:
     
     def update(self, dt):
         """Update game state"""
+        if self.paused:
+            return  # Skip all updates when paused
+            
         if self.game_state == "playing":
             # Store previous line counts for garbage calculation
             prev_player_lines = self.player.game.lines_cleared
@@ -88,15 +101,11 @@ class TetrisBattle:
                     self.player.game.receive_garbage_lines(garbage_to_send)
                     print(f"AI cleared {ai_lines_cleared} lines, sending {garbage_to_send} garbage to Player")
             
-            # Check for round end conditions (Game Boy style)
+            # Check for round end conditions - Only on game over (survival mode)
             if self.player.game.game_over:
                 self.end_round("AI")
             elif self.ai_player.game.game_over:
                 self.end_round("Player")
-            elif self.player.game.check_lines_win_condition():
-                self.end_round("Player")
-            elif self.ai_player.game.check_lines_win_condition():
-                self.end_round("AI")
         
         elif self.game_state == "round_end":
             # Auto-advance after showing round end
@@ -143,7 +152,17 @@ class TetrisBattle:
                 return False
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    return False
+                    if self.paused:
+                        # Show pause menu options
+                        self.return_to_menu = True
+                        return False
+                    else:
+                        # Return to main menu immediately
+                        self.return_to_menu = True
+                        return False
+                elif event.key == pygame.K_p:
+                    # Toggle pause
+                    self.toggle_pause()
                 elif event.key == pygame.K_r and self.game_state == "game_end":
                     # Restart game
                     self.restart_game()
@@ -151,12 +170,23 @@ class TetrisBattle:
                     # Toggle sound
                     self.sound_manager.toggle_sound()
         
-        # Handle player input
-        if self.game_state == "playing":
+        # Handle player input only when not paused
+        if self.game_state == "playing" and not self.paused:
             keys = pygame.key.get_pressed()
             self.player.handle_input(keys)
         
         return True
+    
+    def toggle_pause(self):
+        """Toggle pause state"""
+        if self.game_state == "playing":
+            self.paused = not self.paused
+            if self.paused:
+                self.pause_time = time.time()
+            else:
+                # Adjust round start time to account for paused time
+                pause_duration = time.time() - self.pause_time
+                self.round_start_time += pause_duration
     
     def restart_game(self):
         """Restart the entire game"""
@@ -206,6 +236,8 @@ class TetrisBattle:
             self.draw_round_end_overlay()
         elif self.game_state == "game_end":
             self.draw_game_end_overlay()
+        elif self.paused:
+            self.draw_pause_overlay()
         
         pygame.display.flip()
     
@@ -413,6 +445,10 @@ class TetrisBattle:
     
     def generate_stats_graph(self):
         """Generate Game Boy style statistics graph"""
+        if not MATPLOTLIB_AVAILABLE:
+            print("Statistics graphs not available - matplotlib not installed")
+            return
+            
         try:
             # Create figure with Game Boy color scheme
             fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 8))

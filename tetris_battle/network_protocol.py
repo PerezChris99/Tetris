@@ -31,8 +31,23 @@ class MessageType(Enum):
     END_ROUND = "end_round"
     GAME_OVER = "game_over"
     
+    # Lobby system messages
+    LOBBY_CREATE = "lobby_create"
+    LOBBY_JOIN = "lobby_join"
+    LOBBY_LEAVE = "lobby_leave"
+    LOBBY_LIST = "lobby_list"
+    LOBBY_UPDATE = "lobby_update"
+    LOBBY_PLAYER_LIST = "lobby_player_list"
+    
+    # Spectator messages
+    SPECTATE_REQUEST = "spectate_request"
+    SPECTATE_START = "spectate_start"
+    SPECTATE_STOP = "spectate_stop"
+    SPECTATE_UPDATE = "spectate_update"
+    
     # Chat messages
     CHAT = "chat"
+    LOBBY_CHAT = "lobby_chat"
     
     # Error messages
     ERROR = "error"

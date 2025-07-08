@@ -91,15 +91,15 @@ FONT_LARGE = 24
 FONT_MEDIUM = 16
 FONT_SMALL = 12
 
-# Round settings (for VS mode)
+# Round settings (for VS mode) - Survival until failure
 MAX_ROUNDS = 5
 ROUNDS_TO_WIN = 3
-LINES_TO_WIN = 30  # In GB Tetris, clearing 30 lines wins a round
+# No line limit - rounds continue until someone fails
 
 # Game Boy authenticity settings
 SHOW_GHOST_PIECE = False  # Original Game Boy Tetris had no ghost piece
 ENABLE_HARD_DROP = False  # Original Game Boy Tetris had no hard drop
 AUTHENTIC_SPAWN_DELAY = True  # Use authentic spawn delays
 
-# AI settings
-AI_THINK_TIME = 0.15  # Balanced thinking time for good competition
+# AI settings - Perfect AI configuration
+AI_THINK_TIME = 0.05  # Faster thinking for perfect play (50ms)
