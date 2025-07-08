@@ -1,5 +1,7 @@
 import pygame
 import time
+import matplotlib.pyplot as plt
+import numpy as np
 from config import *
 from player import Player
 from ai_player import AIPlayer
@@ -26,9 +28,17 @@ class TetrisBattle:
         self.current_round = 1
         self.player_wins = 0
         self.ai_wins = 0
-        self.game_state = "playing"  # playing, round_end, game_end
+        self.game_state = "playing"  # playing, round_end, game_end, stats
         self.round_end_time = 0
         self.round_winner = None
+        
+        # Statistics tracking for post-round graphs
+        self.round_stats = []
+        self.current_round_stats = {
+            'player': {'score': 0, 'lines': 0, 'pieces': 0, 'level': 0, 'time': 0},
+            'ai': {'score': 0, 'lines': 0, 'pieces': 0, 'level': 0, 'time': 0}
+        }
+        self.round_start_time = time.time()
         
         self.start_round()
     
@@ -38,6 +48,14 @@ class TetrisBattle:
         self.ai_player.reset()
         self.game_state = "playing"
         self.round_winner = None
+        self.round_start_time = time.time()
+        
+        # Reset current round stats
+        self.current_round_stats = {
+            'player': {'score': 0, 'lines': 0, 'pieces': 0, 'level': 0, 'time': 0},
+            'ai': {'score': 0, 'lines': 0, 'pieces': 0, 'level': 0, 'time': 0}
+        }
+        
         print(f"Starting Round {self.current_round}")
     
     def update(self, dt):
@@ -49,6 +67,9 @@ class TetrisBattle:
             
             self.player.update(dt)
             self.ai_player.update(dt)
+            
+            # Update statistics
+            self.update_round_stats()
             
             # Check for line clears and send garbage (Game Boy style)
             player_lines_cleared = self.player.game.lines_cleared - prev_player_lines
@@ -80,6 +101,11 @@ class TetrisBattle:
         elif self.game_state == "round_end":
             # Auto-advance after showing round end
             if time.time() - self.round_end_time > 3:
+                self.show_round_stats()
+        
+        elif self.game_state == "stats":
+            # Auto-advance after showing stats
+            if time.time() - self.round_end_time > 8:
                 self.next_round()
     
     def end_round(self, winner):
@@ -352,6 +378,122 @@ class TetrisBattle:
         restart_surface = self.font_small.render(restart_text, True, WHITE)
         restart_rect = restart_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 50))
         self.screen.blit(restart_surface, restart_rect)
+    
+    def update_round_stats(self):
+        """Update current round statistics"""
+        round_time = time.time() - self.round_start_time
+        
+        self.current_round_stats['player'] = {
+            'score': self.player.game.score,
+            'lines': self.player.game.lines_cleared,
+            'pieces': self.player.game.pieces_dropped,
+            'level': self.player.game.level,
+            'time': round_time
+        }
+        
+        self.current_round_stats['ai'] = {
+            'score': self.ai_player.game.score,
+            'lines': self.ai_player.game.lines_cleared,
+            'pieces': self.ai_player.game.pieces_dropped,
+            'level': self.ai_player.game.level,
+            'time': round_time
+        }
+    
+    def show_round_stats(self):
+        """Show post-round statistics (Game Boy style)"""
+        # Save current round stats
+        final_stats = self.current_round_stats.copy()
+        final_stats['round'] = self.current_round
+        final_stats['winner'] = self.round_winner
+        self.round_stats.append(final_stats)
+        
+        # Generate and display stats graph
+        self.generate_stats_graph()
+        self.game_state = "stats"
+    
+    def generate_stats_graph(self):
+        """Generate Game Boy style statistics graph"""
+        try:
+            # Create figure with Game Boy color scheme
+            fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 8))
+            fig.patch.set_facecolor('#8BAC0F')  # Game Boy background
+            
+            # Set up data for graphs
+            rounds = [stat['round'] for stat in self.round_stats]
+            player_scores = [stat['player']['score'] for stat in self.round_stats]
+            ai_scores = [stat['ai']['score'] for stat in self.round_stats]
+            player_lines = [stat['player']['lines'] for stat in self.round_stats]
+            ai_lines = [stat['ai']['lines'] for stat in self.round_stats]
+            player_pieces = [stat['player']['pieces'] for stat in self.round_stats]
+            ai_pieces = [stat['ai']['pieces'] for stat in self.round_stats]
+            
+            # Game Boy color palette
+            gb_colors = {'player': '#0F380F', 'ai': '#306230'}
+            
+            # Score comparison
+            ax1.plot(rounds, player_scores, 'o-', color=gb_colors['player'], label='Player', linewidth=2)
+            ax1.plot(rounds, ai_scores, 's-', color=gb_colors['ai'], label='AI', linewidth=2)
+            ax1.set_title('SCORE COMPARISON', fontsize=14, color='#0F380F')
+            ax1.set_xlabel('Round')
+            ax1.set_ylabel('Score')
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+            ax1.set_facecolor('#9BBC0F')
+            
+            # Lines cleared comparison
+            ax2.plot(rounds, player_lines, 'o-', color=gb_colors['player'], label='Player', linewidth=2)
+            ax2.plot(rounds, ai_lines, 's-', color=gb_colors['ai'], label='AI', linewidth=2)
+            ax2.set_title('LINES CLEARED', fontsize=14, color='#0F380F')
+            ax2.set_xlabel('Round')
+            ax2.set_ylabel('Lines')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+            ax2.set_facecolor('#9BBC0F')
+            
+            # Pieces per minute
+            player_ppm = [stat['player']['pieces'] / max(stat['player']['time']/60, 1) for stat in self.round_stats]
+            ai_ppm = [stat['ai']['pieces'] / max(stat['ai']['time']/60, 1) for stat in self.round_stats]
+            
+            ax3.plot(rounds, player_ppm, 'o-', color=gb_colors['player'], label='Player', linewidth=2)
+            ax3.plot(rounds, ai_ppm, 's-', color=gb_colors['ai'], label='AI', linewidth=2)
+            ax3.set_title('PIECES PER MINUTE', fontsize=14, color='#0F380F')
+            ax3.set_xlabel('Round')
+            ax3.set_ylabel('PPM')
+            ax3.legend()
+            ax3.grid(True, alpha=0.3)
+            ax3.set_facecolor('#9BBC0F')
+            
+            # Win/Loss record
+            player_wins = sum(1 for stat in self.round_stats if stat['winner'] == 'Player')
+            ai_wins = sum(1 for stat in self.round_stats if stat['winner'] == 'AI')
+            
+            ax4.bar(['Player', 'AI'], [player_wins, ai_wins], 
+                   color=[gb_colors['player'], gb_colors['ai']])
+            ax4.set_title('WIN RECORD', fontsize=14, color='#0F380F')
+            ax4.set_ylabel('Wins')
+            ax4.set_facecolor('#9BBC0F')
+            
+            # Style all axes
+            for ax in [ax1, ax2, ax3, ax4]:
+                ax.tick_params(colors='#0F380F')
+                ax.spines['bottom'].set_color('#0F380F')
+                ax.spines['top'].set_color('#0F380F')
+                ax.spines['right'].set_color('#0F380F')
+                ax.spines['left'].set_color('#0F380F')
+            
+            plt.tight_layout()
+            plt.suptitle(f'TETRIS BATTLE STATISTICS - ROUND {self.current_round}', 
+                        fontsize=16, color='#0F380F', y=0.98)
+            plt.show(block=False)
+            
+            # Keep window open for 5 seconds
+            plt.pause(5)
+            plt.close()
+            
+        except Exception as e:
+            print(f"Error generating stats graph: {e}")
+            # Skip stats display if matplotlib fails
+            pass
     
     def run(self):
         """Main game loop"""

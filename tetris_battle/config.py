@@ -102,4 +102,4 @@ ENABLE_HARD_DROP = False  # Original Game Boy Tetris had no hard drop
 AUTHENTIC_SPAWN_DELAY = True  # Use authentic spawn delays
 
 # AI settings
-AI_THINK_TIME = 0.1  # Faster thinking for more authentic feel
+AI_THINK_TIME = 0.15  # Balanced thinking time for good competition

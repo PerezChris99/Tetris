@@ -13,6 +13,7 @@ class TetrisGame:
         self.next_piece = None
         self.score = 0
         self.lines_cleared = 0
+        self.pieces_dropped = 0  # Track pieces dropped for statistics
         self.level = start_level
         self.start_level = start_level
         self.game_type = game_type
@@ -48,19 +49,10 @@ class TetrisGame:
     
     def spawn_new_piece(self):
         """Spawn a new piece at the top of the grid - Game Boy style"""
-        if self.current_piece is None:
-            # First piece initialization
-            self.current_piece = self.generator.get_next()
-            self.next_piece = self.generator.current_piece
-        else:
-            # Use the previously previewed next piece
-            self.current_piece = Tetromino(self.next_piece)
-            # Get the actual next piece from generator
-            self.generator.get_next()  # Advance the generator
-            self.next_piece = self.generator.current_piece
+        self.current_piece = self.generator.get_next()
+        self.next_piece = self.generator.current_piece
         
         # Game Boy authentic spawn positions
-        # All pieces spawn at row 0 (top of visible area) except for specific positioning
         piece_type = self.current_piece.shape_type
         
         if piece_type == 'I':
@@ -159,6 +151,9 @@ class TetrisGame:
                 self.grid[block_y][block_x] = 1
                 self.grid_colors[block_y][block_x] = self.current_piece.color
         
+        # Increment pieces dropped counter
+        self.pieces_dropped += 1
+        
         # Check for line clears
         lines_cleared = self.clear_lines()
         if lines_cleared > 0:
@@ -227,7 +222,7 @@ class TetrisGame:
             self.score = min(self.score + points, MAX_SCORE)
             
             # Play line clear sound
-            if hasattr(self, 'sound_manager'):
+            if self.sound_manager and hasattr(self.sound_manager, 'play_sound'):
                 self.sound_manager.play_sound('clear')
     
     def update_level(self):
@@ -336,6 +331,7 @@ class TetrisGame:
         self.next_piece = None
         self.score = 0
         self.lines_cleared = 0
+        self.pieces_dropped = 0
         self.level = self.start_level
         self.fall_time = frames_to_ms(GRAVITY_TABLE[min(self.level, MAX_LEVEL)])
         self.last_fall = 0
