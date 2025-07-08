@@ -27,12 +27,12 @@ class SoundManager:
         for sound_name, filename in sound_files.items():
             sound_path = os.path.join(base_path, filename)
             try:
-                if os.path.exists(sound_path):
+                if os.path.exists(sound_path) and os.path.getsize(sound_path) > 0:
                     sound = pygame.mixer.Sound(sound_path)
                     sound.set_volume(self.volume)
                     self.sounds[sound_name] = sound
                 else:
-                    # Create a placeholder sound or use a default beep
+                    # Create a placeholder sound
                     self.sounds[sound_name] = self.create_placeholder_sound(sound_name)
             except pygame.error:
                 # If sound loading fails, create a placeholder
@@ -105,12 +105,20 @@ class SoundManager:
             # Convert to 16-bit integers
             wave = (wave * 32767).astype(np.int16)
             
+            # Make stereo (duplicate to two channels) and ensure C-contiguous
+            stereo_wave = np.zeros((len(wave), 2), dtype=np.int16)
+            stereo_wave[:, 0] = wave  # Left channel
+            stereo_wave[:, 1] = wave  # Right channel
+            
+            # Ensure the array is C-contiguous
+            stereo_wave = np.ascontiguousarray(stereo_wave)
+            
             # Create pygame sound
-            sound = pygame.sndarray.make_sound(wave)
+            sound = pygame.sndarray.make_sound(stereo_wave)
             sound.set_volume(self.volume)
             return sound
-        except:
-            # If numpy is not available, return None
+        except Exception as e:
+            # Return None if we can't create the sound
             return None
     
     def play_sound(self, sound_name):
@@ -118,8 +126,8 @@ class SoundManager:
         if self.enabled and sound_name in self.sounds and self.sounds[sound_name]:
             try:
                 self.sounds[sound_name].play()
-            except pygame.error:
-                pass  # Ignore sound errors
+            except pygame.error as e:
+                pass  # Ignore sound errors silently
     
     def set_volume(self, volume):
         """Set the volume for all sounds (0.0 to 1.0)"""

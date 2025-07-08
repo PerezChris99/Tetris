@@ -174,62 +174,40 @@ class Tetromino:
 class GameBoyRandomizer:
     """Game Boy Tetris pseudo-random piece generator
     
-    Implements the authentic Game Boy algorithm that prevents the same piece 
-    from appearing 3 times in a row using a history-based approach.
+    Implements a simplified version that ensures good piece distribution
+    while preventing the same piece from appearing too frequently.
     """
     
     def __init__(self):
         self.pieces = ['I', 'O', 'T', 'S', 'Z', 'J', 'L']
-        self.history = []
+        self.bag = self.pieces.copy()
         self.current_piece = None
         self.next_piece = None
-        # Initialize with authentic Game Boy-style seeding
-        self.rng_state = random.randint(0, 65535)
         self._generate_initial_pieces()
     
     def _generate_initial_pieces(self):
         """Generate first two pieces"""
         self.current_piece = random.choice(self.pieces)
-        self.next_piece = self._generate_next_piece()
+        self.next_piece = self._get_random_piece()
     
-    def _generate_next_piece(self):
-        """Generate next piece using authentic Game Boy algorithm
+    def _get_random_piece(self):
+        """Get a random piece using bag randomizer for better distribution"""
+        if not self.bag:
+            # Refill the bag with all pieces
+            self.bag = self.pieces.copy()
+            # Shuffle to ensure randomness
+            random.shuffle(self.bag)
         
-        The Game Boy algorithm uses a history-based approach with bitwise operations
-        to prevent the same piece from appearing 3 times consecutively.
-        """
-        # Update RNG state (simplified version of Game Boy's PRNG)
-        self.rng_state = (self.rng_state * 1103515245 + 12345) & 0xFFFFFFFF
-        
-        # Get piece index from RNG
-        piece_index = (self.rng_state >> 16) % len(self.pieces)
-        candidate = self.pieces[piece_index]
-        
-        # Check if this would make 3 in a row
-        if len(self.history) >= 2:
-            if (self.history[-1] == self.history[-2] == candidate and 
-                self.history[-1] == self.current_piece):
-                # Prevent 3 in a row by trying next piece
-                piece_index = (piece_index + 1) % len(self.pieces)
-                candidate = self.pieces[piece_index]
-        
-        return candidate
+        # Remove and return a piece from the bag
+        return self.bag.pop()
     
     def get_next(self):
         """Get the next piece"""
-        # Create piece from current
         piece = Tetromino(self.current_piece)
         
-        # Update history with current piece
-        self.history.append(self.current_piece)
-        
-        # Advance: next becomes current, generate new next
+        # Move pieces forward
         self.current_piece = self.next_piece
-        self.next_piece = self._generate_next_piece()
-        
-        # Keep history manageable (Game Boy only needs short history)
-        if len(self.history) > 4:
-            self.history.pop(0)
+        self.next_piece = self._get_random_piece()
         
         return piece
     

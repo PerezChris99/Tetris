@@ -6,7 +6,7 @@ from config import *
 
 class Player:
     def __init__(self, sound_manager, start_level=0):
-        self.game = TetrisGame(start_level)
+        self.game = TetrisGame(start_level, sound_manager=sound_manager)
         self.sound_manager = sound_manager
         self.keys_pressed = set()
         self.last_move_time = 0
@@ -27,6 +27,10 @@ class Player:
         if keys[pygame.K_UP] and pygame.K_UP not in self.keys_pressed:
             if self.game.rotate_piece():
                 self.sound_manager.play_sound('rotate')
+        
+        # Handle hard drop (spacebar) - instant drop
+        if keys[pygame.K_SPACE] and pygame.K_SPACE not in self.keys_pressed:
+            self.hard_drop()
         
         # Handle horizontal movement with DAS (Delayed Auto Shift)
         left_pressed = keys[pygame.K_LEFT]
@@ -63,7 +67,7 @@ class Player:
             self.soft_drop_active = False
         
         # Update pressed keys
-        self.keys_pressed = {key for key in [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_DOWN, pygame.K_UP] if keys[key]}
+        self.keys_pressed = {key for key in [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_DOWN, pygame.K_UP, pygame.K_SPACE] if keys[key]}
     
     def _handle_horizontal_movement(self, direction, current_time):
         """Handle horizontal movement with DAS (Game Boy style)"""
@@ -102,3 +106,22 @@ class Player:
         self.das_direction = 0
         self.das_timer = 0
         self.soft_drop_active = False
+    
+    def hard_drop(self):
+        """Hard drop - instantly drop piece to bottom"""
+        if not self.game.current_piece or self.game.game_over:
+            return
+        
+        drop_distance = 0
+        while not self.game.check_collision(self.game.current_piece, 0, 1):
+            self.game.current_piece.y += 1
+            drop_distance += 1
+        
+        # Award points for hard drop distance
+        self.game.score = min(self.game.score + drop_distance * 2, MAX_SCORE)
+        
+        # Lock the piece immediately
+        self.game.lock_piece()
+        
+        # Play drop sound
+        self.sound_manager.play_sound('drop')
